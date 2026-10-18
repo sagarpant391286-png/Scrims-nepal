@@ -1,0 +1,6 @@
+{
+  "name": "ScrimsNepal",
+  "description": "Nepal Free Fire and eSports scrims, tournaments, live rooms, wallet, chat and admin portal",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
