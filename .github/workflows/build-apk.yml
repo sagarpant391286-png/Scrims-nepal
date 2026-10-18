@@ -76,6 +76,7 @@ jobs:
             fi
             echo "Successfully generated ./debug.keystore."
           fi
+          touch .env
 
       - name: Build debug APK
         run: |
