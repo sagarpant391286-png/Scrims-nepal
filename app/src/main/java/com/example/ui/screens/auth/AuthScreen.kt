@@ -1,15 +1,18 @@
 package com.example.ui.screens.auth
 
+import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.SportsEsports
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,22 +21,41 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.ScrimsRepository
+import com.example.data.firebase.GoogleSignInHelper
 import com.example.ui.theme.*
+import kotlinx.coroutines.launch
 
 @Composable
 fun AuthScreen(
+    repository: ScrimsRepository,
     onSignInSuccess: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var ign by remember { mutableStateOf("Gorkhali_FF") }
-    var uid by remember { mutableStateOf("982314562") }
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val googleSignInHelper = remember { GoogleSignInHelper(context) }
+
+    var isRegisterMode by remember { mutableStateOf(false) }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var ign by remember { mutableStateOf("") }
+    var ffUid by remember { mutableStateOf("") }
+
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val scrollState = rememberScrollState()
 
     Box(
         modifier = modifier
@@ -47,14 +69,14 @@ fun AuthScreen(
             contentDescription = null,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(300.dp),
+                .height(280.dp),
             contentScale = ContentScale.Crop
         )
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(300.dp)
+                .height(280.dp)
                 .background(
                     Brush.verticalGradient(
                         listOf(Color.Transparent, BrandBackground.copy(alpha = 0.85f), BrandBackground)
@@ -66,59 +88,129 @@ fun AuthScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+                .verticalScroll(scrollState)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(top = 40.dp)
+            // Header with logo
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(CircleShape)
+                    .background(BrandCardElevated)
+                    .border(2.dp, CrimsonPrimary, CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(BrandCardElevated)
-                        .border(2.dp, CrimsonPrimary, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.scrims_logo),
-                        contentDescription = "Logo",
-                        modifier = Modifier.size(72.dp),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "SCRIMS",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Black,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "NEPAL",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Black,
-                        color = CrimsonPrimary
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = "Daily Competitive Esports Scrims & Instant Booyah Payouts in Nepal",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary,
-                    textAlign = TextAlign.Center
+                Image(
+                    painter = painterResource(id = R.drawable.scrims_logo),
+                    contentDescription = "Logo",
+                    modifier = Modifier.size(68.dp),
+                    contentScale = ContentScale.Crop
                 )
             }
 
-            // Credential Inputs Card
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "SCRIMS",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Black,
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "NEPAL",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Black,
+                    color = CrimsonPrimary
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Nepal's Competitive Free Fire & Esports Platform",
+                style = MaterialTheme.typography.bodyMedium,
+                color = TextSecondary,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Tab Selector: Sign In vs Register
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(BrandCardDark)
+                    .padding(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (!isRegisterMode) CrimsonPrimary else Color.Transparent)
+                        .clickable {
+                            isRegisterMode = false
+                            errorMessage = null
+                        }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Sign In",
+                        fontWeight = FontWeight.Bold,
+                        color = if (!isRegisterMode) TextPrimary else TextSecondary
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isRegisterMode) CrimsonPrimary else Color.Transparent)
+                        .clickable {
+                            isRegisterMode = true
+                            errorMessage = null
+                        }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Create Account",
+                        fontWeight = FontWeight.Bold,
+                        color = if (isRegisterMode) TextPrimary else TextSecondary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Error Message Box
+            AnimatedVisibility(visible = errorMessage != null) {
+                errorMessage?.let { err ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.15f)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = err, style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                        }
+                    }
+                }
+            }
+
+            // Input Form Card
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = BrandCardDark),
@@ -127,65 +219,247 @@ fun AuthScreen(
             ) {
                 Column(modifier = Modifier.padding(18.dp)) {
                     Text(
-                        text = "PLAYER IDENTITY",
+                        text = if (isRegisterMode) "REGISTER NEW PLAYER" else "SIGN IN TO YOUR ARENA",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = GoldAccent
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (isRegisterMode) {
+                        OutlinedTextField(
+                            value = displayName,
+                            onValueChange = { displayName = it },
+                            label = { Text("Full Name / Nickname") },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CrimsonPrimary,
+                                unfocusedBorderColor = BrandBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            modifier = Modifier.fillMaxWidth().testTag("auth_name_input")
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = ign,
+                            onValueChange = { ign = it },
+                            label = { Text("Free Fire In-Game Name (IGN)") },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CrimsonPrimary,
+                                unfocusedBorderColor = BrandBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            modifier = Modifier.fillMaxWidth().testTag("auth_ign_input")
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = ffUid,
+                            onValueChange = { ffUid = it },
+                            label = { Text("Free Fire Player UID") },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = CrimsonPrimary,
+                                unfocusedBorderColor = BrandBorder,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary
+                            ),
+                            modifier = Modifier.fillMaxWidth().testTag("auth_uid_input")
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
 
                     OutlinedTextField(
-                        value = ign,
-                        onValueChange = { ign = it },
-                        label = { Text("Free Fire In-Game Name (IGN)") },
+                        value = email,
+                        onValueChange = { email = it },
+                        label = { Text("Email Address") },
+                        placeholder = { Text("e.g. sagarpant391286@gmail.com", color = TextMuted) },
                         singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Email
+                        ),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = CrimsonPrimary,
                             unfocusedBorderColor = BrandBorder,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
                         ),
-                        modifier = Modifier.fillMaxWidth().testTag("auth_ign_input")
+                        modifier = Modifier.fillMaxWidth().testTag("auth_email_input")
                     )
 
                     Spacer(modifier = Modifier.height(10.dp))
 
                     OutlinedTextField(
-                        value = uid,
-                        onValueChange = { uid = it },
-                        label = { Text("Free Fire Player UID") },
+                        value = password,
+                        onValueChange = { password = it },
+                        label = { Text("Password (Min 6 characters)") },
                         singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password
+                        ),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = CrimsonPrimary,
                             unfocusedBorderColor = BrandBorder,
                             focusedTextColor = TextPrimary,
                             unfocusedTextColor = TextPrimary
                         ),
-                        modifier = Modifier.fillMaxWidth().testTag("auth_uid_input")
+                        modifier = Modifier.fillMaxWidth().testTag("auth_password_input")
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
-                        onClick = onSignInSuccess,
+                        onClick = {
+                            errorMessage = null
+                            val cleanEmail = email.trim()
+                            val cleanPass = password.trim()
+
+                            if (cleanEmail.isBlank()) {
+                                errorMessage = "Please enter your email address."
+                                return@Button
+                            }
+                            if (!android.util.Patterns.EMAIL_ADDRESS.matcher(cleanEmail).matches()) {
+                                errorMessage = "The email address is badly formatted. Please enter a valid email address (e.g. name@example.com)."
+                                return@Button
+                            }
+                            if (cleanPass.length < 6) {
+                                errorMessage = "Password must be at least 6 characters long."
+                                return@Button
+                            }
+                            if (isRegisterMode && (ign.isBlank() || ffUid.isBlank())) {
+                                errorMessage = "Please provide your Free Fire In-Game Name and UID."
+                                return@Button
+                            }
+
+                            isLoading = true
+                            coroutineScope.launch {
+                                if (isRegisterMode) {
+                                    val res = repository.registerWithEmail(
+                                        email = cleanEmail,
+                                        pass = cleanPass,
+                                        displayName = displayName.ifBlank { ign }.trim(),
+                                        ign = ign.trim(),
+                                        ffUid = ffUid.trim()
+                                    )
+                                    isLoading = false
+                                    res.onSuccess {
+                                        Toast.makeText(context, "Account registered successfully!", Toast.LENGTH_SHORT).show()
+                                        onSignInSuccess()
+                                    }.onFailure { err ->
+                                        errorMessage = err.message ?: "Registration failed."
+                                    }
+                                } else {
+                                    val res = repository.signInWithEmail(cleanEmail, cleanPass)
+                                    isLoading = false
+                                    res.onSuccess {
+                                        Toast.makeText(context, "Welcome back!", Toast.LENGTH_SHORT).show()
+                                        onSignInSuccess()
+                                    }.onFailure { err ->
+                                        errorMessage = err.message ?: "Sign-in failed."
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !isLoading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("submit_auth_btn"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CrimsonPrimary)
+                    ) {
+                        if (isLoading) {
+                            CircularProgressIndicator(color = TextPrimary, modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        } else {
+                            Icon(Icons.Default.SportsEsports, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isRegisterMode) "Register & Start with NPR 0" else "Sign In & Enter Arena",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Divider with OR
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.weight(1f).height(1.dp).background(BrandBorder))
+                        Text(
+                            text = "  OR  ",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary
+                        )
+                        Box(modifier = Modifier.weight(1f).height(1.dp).background(BrandBorder))
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Google Sign-In Button
+                    OutlinedButton(
+                        onClick = {
+                            errorMessage = null
+                            isLoading = true
+                            val webClientId = context.getString(R.string.default_web_client_id)
+                            coroutineScope.launch {
+                                googleSignInHelper.onGoogleSignInClicked(webClientId) { success, msg ->
+                                    isLoading = false
+                                    if (success) {
+                                        val firebaseUser = repository.firebaseService.auth.currentUser
+                                        if (firebaseUser != null) {
+                                            repository.onUserAuthenticated(
+                                                uid = firebaseUser.uid,
+                                                email = firebaseUser.email.orEmpty(),
+                                                displayName = firebaseUser.displayName ?: "Player"
+                                            )
+                                        }
+                                        Toast.makeText(context, "Signed in with Google successfully!", Toast.LENGTH_SHORT).show()
+                                        onSignInSuccess()
+                                    } else {
+                                        errorMessage = msg ?: "Google Sign-In failed"
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(50.dp)
                             .testTag("google_signin_btn"),
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CrimsonPrimary)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandBorder),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
                     ) {
-                        Icon(Icons.Default.SportsEsports, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.AccountCircle,
+                            contentDescription = null,
+                            tint = GoldAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Sign In & Enter Arena",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
+                            text = "Sign in with Google",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
                         )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(20.dp))
 
             // Trust Badges
             Row(
@@ -195,7 +469,7 @@ fun AuthScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("eSewa & Khalti", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                    Text("eSewa & Khalti Supported", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {

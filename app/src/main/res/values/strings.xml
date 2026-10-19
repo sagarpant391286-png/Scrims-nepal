@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">ScrimsNepal</string>
+    <string name="default_web_client_id" translatable="false">25539132067-uqvcij25cu8k5b256be79fjfnq5uaave.apps.googleusercontent.com</string>
 </resources>

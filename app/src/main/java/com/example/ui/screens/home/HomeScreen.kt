@@ -63,6 +63,8 @@ fun HomeScreen(
         }
     }
 
+    val isLoading by repository.isLoadingScrims.collectAsState()
+
     Scaffold(
         topBar = {
             HomeTopBar(
@@ -104,17 +106,90 @@ fun HomeScreen(
             item {
                 SectionHeader(
                     title = "Tournaments & Scrims",
-                    subtitle = "${filteredScrims.size} matches available in Nepal timezone"
+                    subtitle = if (filteredScrims.isEmpty()) "Realtime tournament schedule" else "${filteredScrims.size} matches available in Nepal timezone"
                 )
             }
 
-            // List of Scrims
-            items(filteredScrims, key = { it.id }) { scrim ->
-                ScrimCard(
-                    scrim = scrim,
-                    isRegistered = registeredIds.contains(scrim.id),
-                    onClick = { activeScrimForDetails = scrim }
-                )
+            if (isLoading) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = BrandCardDark),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandBorder)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(36.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(color = CrimsonPrimary, strokeWidth = 3.dp)
+                            Spacer(modifier = Modifier.height(14.dp))
+                            Text(
+                                text = "Loading tournaments from Firebase...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+            } else if (filteredScrims.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("empty_tournaments_card"),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = BrandCardDark),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandBorder)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(36.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(60.dp)
+                                    .clip(CircleShape)
+                                    .background(BrandCardElevated),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SportsEsports,
+                                    contentDescription = null,
+                                    tint = CrimsonPrimary,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "No tournaments available yet.",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "No live or scheduled matches in this category. As soon as the admin creates a match in Firestore, it will appear here instantly.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                // List of real Scrims
+                items(filteredScrims, key = { it.id }) { scrim ->
+                    ScrimCard(
+                        scrim = scrim,
+                        isRegistered = registeredIds.contains(scrim.id),
+                        onClick = { activeScrimForDetails = scrim }
+                    )
+                }
             }
 
             item {

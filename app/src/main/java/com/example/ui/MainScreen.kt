@@ -1,6 +1,5 @@
 package com.example.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,13 +23,16 @@ fun MainScreen(
     repository: ScrimsRepository,
     modifier: Modifier = Modifier
 ) {
-    var isSignedIn by remember { mutableStateOf(true) }
+    val isAuthenticated by repository.isAuthenticated.collectAsState()
     var currentTab by remember { mutableStateOf(BottomNavTab.HOME) }
     var activeChatConversationId by remember { mutableStateOf<String?>(null) }
 
-    if (!isSignedIn) {
+    if (!isAuthenticated) {
         AuthScreen(
-            onSignInSuccess = { isSignedIn = true },
+            repository = repository,
+            onSignInSuccess = {
+                // isAuthenticated StateFlow will trigger recomposition automatically
+            },
             modifier = modifier
         )
         return
@@ -114,7 +116,7 @@ fun MainScreen(
                 currentTab == BottomNavTab.SETTINGS -> {
                     SettingsScreen(
                         repository = repository,
-                        onSignOutClick = { isSignedIn = false }
+                        onSignOutClick = { repository.signOut() }
                     )
                 }
             }

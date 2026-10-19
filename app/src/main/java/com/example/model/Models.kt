@@ -64,20 +64,21 @@ data class Registration(
 )
 
 data class Scrim(
-    val id: String,
-    val map: ScrimMap,
-    val mode: ScrimMode,
+    val id: String = "",
+    val map: ScrimMap = ScrimMap.BERMUDA,
+    val mode: ScrimMode = ScrimMode.SQUAD,
     val status: ScrimStatus = ScrimStatus.UPCOMING,
     val entryFeeNpr: Int = 50,
     val prizePoolNpr: Int = 1500,
     val matchTimeNepal: String = "07:00 PM",
     val matchDateFormatted: String = "Today",
     val slotsTotal: Int = 12,
-    val slotsFilled: Int = 8,
+    val slotsFilled: Int = 0,
     val isFeatured: Boolean = false,
     val roomDetails: RoomDetails? = null,
     val prizes: PrizeBreakdown = PrizeBreakdown(),
-    val results: List<MatchResult> = emptyList()
+    val results: List<MatchResult> = emptyList(),
+    val registeredUserIds: List<String> = emptyList()
 )
 
 enum class PaymentMethod(val displayName: String) {
@@ -96,13 +97,13 @@ enum class TransactionType {
 }
 
 data class WalletTransaction(
-    val id: String,
-    val title: String,
-    val amountNpr: Int,
-    val dateNepal: String,
-    val status: String,
-    val referenceId: String,
-    val type: TransactionType
+    val id: String = "",
+    val title: String = "",
+    val amountNpr: Int = 0,
+    val dateNepal: String = "",
+    val status: String = "COMPLETED",
+    val referenceId: String = "",
+    val type: TransactionType = TransactionType.DEPOSIT_CONFIRMED
 )
 
 enum class WithdrawalStatus(val label: String) {
@@ -114,25 +115,30 @@ enum class WithdrawalStatus(val label: String) {
 }
 
 data class WithdrawalRequest(
-    val id: String,
-    val amountNpr: Int,
-    val method: PaymentMethod,
-    val accountName: String,
-    val accountNumber: String,
+    val id: String = "",
+    val userId: String = "",
+    val userName: String = "",
+    val amountNpr: Int = 0,
+    val method: PaymentMethod = PaymentMethod.ESEWA,
+    val accountName: String = "",
+    val accountNumber: String = "",
     val status: WithdrawalStatus = WithdrawalStatus.PENDING,
-    val adminNote: String = ""
+    val adminNote: String = "",
+    val requestTimeNepal: String = ""
 )
 
 data class User(
-    val id: String,
-    val email: String,
-    val displayName: String,
+    val id: String = "",
+    val email: String = "",
+    val displayName: String = "",
     val avatarUrl: String = "",
-    val freeFireIgn: String = "Gorkhali_FF",
-    val freeFireUid: String = "194829381",
-    val walletBalanceNpr: Int = 850,
-    val totalMatchesPlayed: Int = 42,
-    val totalWins: Int = 14
+    val freeFireIgn: String = "",
+    val freeFireUid: String = "",
+    val walletBalanceNpr: Int = 0,
+    val totalMatchesPlayed: Int = 0,
+    val totalWins: Int = 0,
+    val role: String = "USER",
+    val createdAt: String = ""
 )
 
 enum class AdminRole(val label: String) {
@@ -165,9 +171,9 @@ enum class AdminPermission(val label: String) {
 }
 
 data class AdminUser(
-    val id: String,
-    val email: String,
-    val role: AdminRole,
+    val id: String = "",
+    val email: String = "",
+    val role: AdminRole = AdminRole.SUPER_ADMIN,
     val isSuperAdmin: Boolean = false,
     val permissions: List<AdminPermission> = emptyList(),
     val invitedBy: String = "Root Admin",
@@ -184,11 +190,11 @@ enum class InvitationStatus(val label: String) {
 }
 
 data class AdminInvitation(
-    val id: String,
-    val email: String,
-    val role: AdminRole,
-    val permissions: List<AdminPermission>,
-    val invitedBy: String,
+    val id: String = "",
+    val email: String = "",
+    val role: AdminRole = AdminRole.TOURNAMENT_MOD,
+    val permissions: List<AdminPermission> = emptyList(),
+    val invitedBy: String = "",
     val status: InvitationStatus = InvitationStatus.PENDING,
     val code: String = ""
 )
@@ -207,28 +213,28 @@ enum class AuditAction(val label: String) {
 }
 
 data class AdminAuditLog(
-    val id: String,
-    val adminEmail: String,
-    val action: AuditAction,
-    val target: String,
-    val timestampNepal: String,
+    val id: String = "",
+    val adminEmail: String = "",
+    val action: AuditAction = AuditAction.SCRIM_CREATED,
+    val target: String = "",
+    val timestampNepal: String = "",
     val details: String = ""
 )
 
 data class CsvScrimRow(
-    val lineNumber: Int,
-    val mode: ScrimMode,
-    val map: ScrimMap,
-    val entryFeeNpr: Int,
-    val matchTimeNepal: String,
+    val lineNumber: Int = 1,
+    val mode: ScrimMode = ScrimMode.SQUAD,
+    val map: ScrimMap = ScrimMap.BERMUDA,
+    val entryFeeNpr: Int = 50,
+    val matchTimeNepal: String = "07:00 PM",
     val isValid: Boolean = true,
     val error: String = ""
 )
 
 data class CsvImportResult(
-    val totalRowsParsed: Int,
-    val validRows: List<CsvScrimRow>,
-    val invalidRows: List<CsvScrimRow>
+    val totalRowsParsed: Int = 0,
+    val validRows: List<CsvScrimRow> = emptyList(),
+    val invalidRows: List<CsvScrimRow> = emptyList()
 )
 
 enum class ConversationType {
@@ -245,12 +251,12 @@ enum class MessageStatus {
 }
 
 data class ChatMessage(
-    val id: String,
-    val conversationId: String,
-    val senderName: String,
-    val senderUid: String,
-    val message: String,
-    val timestampNepal: String,
+    val id: String = "",
+    val conversationId: String = "",
+    val senderName: String = "",
+    val senderUid: String = "",
+    val message: String = "",
+    val timestampNepal: String = "",
     val isOfficialAdmin: Boolean = false,
     val isMe: Boolean = false,
     val replyToSender: String? = null,
@@ -259,10 +265,10 @@ data class ChatMessage(
 )
 
 data class Conversation(
-    val id: String,
-    val title: String,
-    val type: ConversationType,
-    val lastMessage: String,
+    val id: String = "",
+    val title: String = "",
+    val type: ConversationType = ConversationType.GROUP,
+    val lastMessage: String = "",
     val unreadCount: Int = 0,
     val isVerified: Boolean = false,
     val isOnline: Boolean = true,
@@ -272,10 +278,10 @@ data class Conversation(
 )
 
 data class SupportTicket(
-    val id: String,
-    val category: String,
-    val description: String,
-    val dateNepal: String,
-    val status: String,
+    val id: String = "",
+    val category: String = "",
+    val description: String = "",
+    val dateNepal: String = "",
+    val status: String = "",
     val adminReply: String? = null
 )

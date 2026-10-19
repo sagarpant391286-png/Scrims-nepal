@@ -1,0 +1,49 @@
+{
+  "entities": {
+    "User": {
+      "collection": "users",
+      "fields": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "freeFireIgn": { "type": "string" },
+        "freeFireUid": { "type": "string" },
+        "walletBalanceNpr": { "type": "number" },
+        "totalMatchesPlayed": { "type": "number" },
+        "totalWins": { "type": "number" },
+        "role": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "Scrim": {
+      "collection": "scrims",
+      "fields": {
+        "id": { "type": "string" },
+        "map": { "type": "string" },
+        "mode": { "type": "string" },
+        "status": { "type": "string" },
+        "entryFeeNpr": { "type": "number" },
+        "prizePoolNpr": { "type": "number" },
+        "matchTimeNepal": { "type": "string" },
+        "matchDateFormatted": { "type": "string" },
+        "slotsTotal": { "type": "number" },
+        "slotsFilled": { "type": "number" },
+        "isFeatured": { "type": "boolean" }
+      }
+    },
+    "Withdrawal": {
+      "collection": "withdrawals",
+      "fields": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "amountNpr": { "type": "number" },
+        "method": { "type": "string" },
+        "accountName": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "status": { "type": "string" },
+        "requestTimeNepal": { "type": "string" }
+      }
+    }
+  }
+}

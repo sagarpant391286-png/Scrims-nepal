@@ -257,8 +257,29 @@ fun SettingsScreen(
                 )
             }
 
-            items(transactions, key = { it.id }) { tx ->
-                TransactionRow(tx = tx)
+            if (transactions.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = CardDefaults.cardColors(containerColor = BrandCardDark),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BrandBorder)
+                    ) {
+                        Text(
+                            text = "No transaction records found.\nYour initial balance is NPR 0. Winnings, entries, and verified top-ups will be recorded here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp)
+                        )
+                    }
+                }
+            } else {
+                items(transactions, key = { it.id }) { tx ->
+                    TransactionRow(tx = tx)
+                }
             }
 
             // Tournament Guidelines & FAQs
