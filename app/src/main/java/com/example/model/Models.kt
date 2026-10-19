@@ -138,8 +138,15 @@ data class User(
     val totalMatchesPlayed: Int = 0,
     val totalWins: Int = 0,
     val role: String = "USER",
+    val accountStatus: String = "ACTIVE",
     val createdAt: String = ""
-)
+) {
+    val uid: String get() = id
+    val fullName: String get() = displayName
+    val ign: String get() = freeFireIgn
+    val freeFireUID: String get() = freeFireUid
+    val walletBalance: Int get() = walletBalanceNpr
+}
 
 enum class AdminRole(val label: String) {
     SUPER_ADMIN("Super Admin"),

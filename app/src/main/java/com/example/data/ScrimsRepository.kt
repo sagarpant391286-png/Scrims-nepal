@@ -5,6 +5,7 @@ import com.example.data.firebase.FirebaseService
 import com.example.model.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import kotlinx.coroutines.CoroutineScope
@@ -173,9 +174,21 @@ class ScrimsRepository(
             }
         }
 
-        // If user is already signed in on app start, sync profile & transactions
-        auth.currentUser?.let { firebaseUser ->
-            onUserAuthenticated(firebaseUser.uid, firebaseUser.email.orEmpty(), firebaseUser.displayName.orEmpty())
+        // Persistent auth state listener ensures UI stays synced with Firebase session
+        auth.addAuthStateListener { firebaseAuth ->
+            val firebaseUser = firebaseAuth.currentUser
+            if (firebaseUser != null) {
+                onUserAuthenticated(
+                    firebaseUser.uid,
+                    firebaseUser.email.orEmpty(),
+                    firebaseUser.displayName.orEmpty()
+                )
+            } else {
+                _isAuthenticated.value = false
+                _currentUser.value = User(walletBalanceNpr = 0)
+                _registeredScrimIds.value = emptySet()
+                _transactions.value = emptyList()
+            }
         }
     }
 
@@ -252,13 +265,22 @@ class ScrimsRepository(
         } catch (e: FirebaseAuthWeakPasswordException) {
             Result.failure(Exception("Password is too weak. Please use at least 6 characters."))
         } catch (e: FirebaseAuthUserCollisionException) {
-            Result.failure(Exception("An account already exists with this email address. Please tap 'Sign In' instead."))
+            Result.failure(Exception("ACCOUNT_EXISTS: An account already exists with this email address. Please tap 'Sign In' instead."))
         } catch (e: FirebaseAuthInvalidCredentialsException) {
             Result.failure(Exception("The email address is invalid or badly formatted."))
+        } catch (e: com.google.firebase.auth.FirebaseAuthException) {
+            val msg = e.localizedMessage ?: ""
+            if (e.errorCode == "ERROR_OPERATION_NOT_ALLOWED" || msg.contains("operation is not allowed", ignoreCase = true) || msg.contains("sign-in provider is disabled", ignoreCase = true)) {
+                Result.failure(Exception("FIREBASE_PROVIDER_DISABLED: Email/Password provider is disabled for this Firebase project. If you just enabled it in Firebase Console, please tap 'Retry Now' or restart the app."))
+            } else {
+                Result.failure(Exception(msg))
+            }
         } catch (e: Exception) {
             val msg = e.localizedMessage ?: "Registration failed."
             if (msg.contains("badly formatted", ignoreCase = true)) {
                 Result.failure(Exception("The email address is badly formatted. Please check for typos."))
+            } else if (msg.contains("operation is not allowed", ignoreCase = true) || msg.contains("sign-in provider is disabled", ignoreCase = true)) {
+                Result.failure(Exception("FIREBASE_PROVIDER_DISABLED: Email/Password provider is disabled for this Firebase project. If you just enabled it in Firebase Console, please tap 'Retry Now' or restart the app."))
             } else {
                 Result.failure(Exception(msg))
             }
@@ -287,21 +309,42 @@ class ScrimsRepository(
             )
             onUserAuthenticated(firebaseUser.uid, user.email, user.displayName, user.freeFireIgn, user.freeFireUid)
             Result.success(user)
+        } catch (e: FirebaseAuthInvalidUserException) {
+            Result.failure(Exception("ACCOUNT_NOT_FOUND: No account was found with this email. Tap 'Create Account' to register."))
         } catch (e: FirebaseAuthInvalidCredentialsException) {
             val msg = e.localizedMessage ?: ""
             if (msg.contains("badly formatted", ignoreCase = true) || msg.contains("invalid email", ignoreCase = true)) {
                 Result.failure(Exception("The email address is badly formatted. Please check for typos."))
             } else {
-                Result.failure(Exception("Incorrect password or email not registered. If new, tap 'Create Account'."))
+                Result.failure(Exception("INVALID_CREDENTIALS: Incorrect password or credentials. If you haven't registered yet, tap 'Create Account'."))
+            }
+        } catch (e: com.google.firebase.auth.FirebaseAuthException) {
+            val msg = e.localizedMessage ?: ""
+            if (e.errorCode == "ERROR_OPERATION_NOT_ALLOWED" || msg.contains("operation is not allowed", ignoreCase = true) || msg.contains("sign-in provider is disabled", ignoreCase = true)) {
+                Result.failure(Exception("FIREBASE_PROVIDER_DISABLED: Email/Password provider is disabled for this Firebase project. If you just enabled it in Firebase Console, please tap 'Retry Now' or restart the app."))
+            } else {
+                Result.failure(Exception(msg))
             }
         } catch (e: Exception) {
             val msg = e.localizedMessage ?: "Sign-in failed."
             if (msg.contains("badly formatted", ignoreCase = true)) {
                 Result.failure(Exception("The email address is badly formatted. Please check for typos."))
+            } else if (msg.contains("operation is not allowed", ignoreCase = true) || msg.contains("sign-in provider is disabled", ignoreCase = true)) {
+                Result.failure(Exception("FIREBASE_PROVIDER_DISABLED: Email/Password provider is disabled for this Firebase project. If you just enabled it in Firebase Console, please tap 'Retry Now' or restart the app."))
             } else {
                 Result.failure(Exception(msg))
             }
         }
+    }
+
+    suspend fun updatePlayerGamerInfo(ign: String, ffUid: String): Boolean {
+        val user = _currentUser.value
+        if (user.id.isBlank()) return false
+        val success = firebaseService.updatePlayerGamerInfo(user.id, ign.trim(), ffUid.trim())
+        if (success) {
+            _currentUser.value = user.copy(freeFireIgn = ign.trim(), freeFireUid = ffUid.trim())
+        }
+        return success
     }
 
     fun signOut(onComplete: () -> Unit = {}) {

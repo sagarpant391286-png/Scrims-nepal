@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -25,7 +26,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,12 +51,20 @@ fun AuthScreen(
     var isRegisterMode by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     var displayName by remember { mutableStateOf("") }
     var ign by remember { mutableStateOf("") }
     var ffUid by remember { mutableStateOf("") }
 
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showProviderDisabledDialog by remember { mutableStateOf(false) }
+
+    // Google Sign-In profile completion dialog state
+    var showGoogleProfileDialog by remember { mutableStateOf(false) }
+    var googleIgn by remember { mutableStateOf("") }
+    var googleFfUid by remember { mutableStateOf("") }
+    var googleUidToUpdate by remember { mutableStateOf("") }
 
     val scrollState = rememberScrollState()
 
@@ -190,21 +201,115 @@ fun AuthScreen(
             // Error Message Box
             AnimatedVisibility(visible = errorMessage != null) {
                 errorMessage?.let { err ->
+                    val isProviderDisabled = err.contains("FIREBASE_PROVIDER_DISABLED") ||
+                            err.contains("operation is not allowed", ignoreCase = true) ||
+                            err.contains("sign-in provider is disabled", ignoreCase = true)
+                    val isAccountNotFound = err.contains("ACCOUNT_NOT_FOUND")
+                    val isAccountExists = err.contains("ACCOUNT_EXISTS")
+
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = ErrorRed.copy(alpha = 0.15f)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isProviderDisabled) WarningOrange.copy(alpha = 0.15f) else ErrorRed.copy(alpha = 0.15f)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isProviderDisabled) WarningOrange.copy(alpha = 0.6f) else ErrorRed.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 12.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(text = err, style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = if (isProviderDisabled) Icons.Default.Warning else Icons.Default.ErrorOutline,
+                                    contentDescription = null,
+                                    tint = if (isProviderDisabled) WarningOrange else ErrorRed,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = when {
+                                        isProviderDisabled -> "Firebase Sign-In Provider Disabled"
+                                        isAccountNotFound -> "Account Not Found"
+                                        isAccountExists -> "Account Already Exists"
+                                        else -> "Authentication Notice"
+                                    },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isProviderDisabled) WarningOrange else ErrorRed
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = when {
+                                    isProviderDisabled -> {
+                                        "The Email/Password provider needs to be enabled in Firebase Console.\n\n" +
+                                        "If you already enabled it in the Console, please tap 'Retry Now' to connect, or use 'Sign in with Google'."
+                                    }
+                                    isAccountNotFound -> "No account was found with this email. Tap below to create your account with this email and password."
+                                    isAccountExists -> "An account with this email is already registered. Tap below to sign in."
+                                    else -> err.removePrefix("INVALID_CREDENTIALS: ")
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextPrimary
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            if (isAccountNotFound) {
+                                Button(
+                                    onClick = {
+                                        isRegisterMode = true
+                                        errorMessage = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonPrimary),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Switch to Create Account")
+                                }
+                            } else if (isAccountExists) {
+                                Button(
+                                    onClick = {
+                                        isRegisterMode = false
+                                        errorMessage = null
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonPrimary),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Switch to Sign In")
+                                }
+                            } else if (isProviderDisabled) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Button(
+                                        onClick = { errorMessage = null },
+                                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Retry Now")
+                                    }
+                                    OutlinedButton(
+                                        onClick = { showProviderDisabledDialog = true },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Setup Steps")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -232,6 +337,7 @@ fun AuthScreen(
                             value = displayName,
                             onValueChange = { displayName = it },
                             label = { Text("Full Name / Nickname") },
+                            placeholder = { Text("e.g. Sagar Pant", color = TextMuted) },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = CrimsonPrimary,
@@ -248,6 +354,7 @@ fun AuthScreen(
                             value = ign,
                             onValueChange = { ign = it },
                             label = { Text("Free Fire In-Game Name (IGN)") },
+                            placeholder = { Text("e.g. Gorkhali_FF", color = TextMuted) },
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = CrimsonPrimary,
@@ -262,9 +369,13 @@ fun AuthScreen(
 
                         OutlinedTextField(
                             value = ffUid,
-                            onValueChange = { ffUid = it },
-                            label = { Text("Free Fire Player UID") },
+                            onValueChange = { input ->
+                                if (input.all { it.isDigit() }) ffUid = input
+                            },
+                            label = { Text("Free Fire Player UID (8-12 digits)") },
+                            placeholder = { Text("e.g. 982314562", color = TextMuted) },
                             singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = CrimsonPrimary,
                                 unfocusedBorderColor = BrandBorder,
@@ -283,9 +394,7 @@ fun AuthScreen(
                         label = { Text("Email Address") },
                         placeholder = { Text("e.g. sagarpant391286@gmail.com", color = TextMuted) },
                         singleLine = true,
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Email
-                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = CrimsonPrimary,
                             unfocusedBorderColor = BrandBorder,
@@ -302,10 +411,17 @@ fun AuthScreen(
                         onValueChange = { password = it },
                         label = { Text("Password (Min 6 characters)") },
                         singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password
-                        ),
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                    contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                                    tint = TextSecondary
+                                )
+                            }
+                        },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = CrimsonPrimary,
                             unfocusedBorderColor = BrandBorder,
@@ -335,9 +451,15 @@ fun AuthScreen(
                                 errorMessage = "Password must be at least 6 characters long."
                                 return@Button
                             }
-                            if (isRegisterMode && (ign.isBlank() || ffUid.isBlank())) {
-                                errorMessage = "Please provide your Free Fire In-Game Name and UID."
-                                return@Button
+                            if (isRegisterMode) {
+                                if (ign.isBlank()) {
+                                    errorMessage = "Please enter your Free Fire In-Game Name (IGN)."
+                                    return@Button
+                                }
+                                if (ffUid.isBlank() || ffUid.length < 6) {
+                                    errorMessage = "Please enter a valid Free Fire Player UID (numbers only, min 6 digits)."
+                                    return@Button
+                                }
                             }
 
                             isLoading = true
@@ -356,6 +478,9 @@ fun AuthScreen(
                                         onSignInSuccess()
                                     }.onFailure { err ->
                                         errorMessage = err.message ?: "Registration failed."
+                                        if (errorMessage?.contains("FIREBASE_PROVIDER_DISABLED") == true) {
+                                            showProviderDisabledDialog = true
+                                        }
                                     }
                                 } else {
                                     val res = repository.signInWithEmail(cleanEmail, cleanPass)
@@ -365,6 +490,9 @@ fun AuthScreen(
                                         onSignInSuccess()
                                     }.onFailure { err ->
                                         errorMessage = err.message ?: "Sign-in failed."
+                                        if (errorMessage?.contains("FIREBASE_PROVIDER_DISABLED") == true) {
+                                            showProviderDisabledDialog = true
+                                        }
                                     }
                                 }
                             }
@@ -390,7 +518,33 @@ fun AuthScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                isRegisterMode = !isRegisterMode
+                                errorMessage = null
+                            }
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (isRegisterMode) "Already registered? " else "Don't have an account yet? ",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                        Text(
+                            text = if (isRegisterMode) "Sign In" else "Create Account",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = GoldAccent
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     // Divider with OR
                     Row(
@@ -425,6 +579,15 @@ fun AuthScreen(
                                                 email = firebaseUser.email.orEmpty(),
                                                 displayName = firebaseUser.displayName ?: "Player"
                                             )
+                                            // Check if user has Free Fire IGN / UID set
+                                            val profile = repository.currentUser.value
+                                            if (profile.freeFireIgn.isBlank() || profile.freeFireUid.isBlank()) {
+                                                googleUidToUpdate = firebaseUser.uid
+                                                googleIgn = profile.freeFireIgn
+                                                googleFfUid = profile.freeFireUid
+                                                showGoogleProfileDialog = true
+                                                return@onGoogleSignInClicked
+                                            }
                                         }
                                         Toast.makeText(context, "Signed in with Google successfully!", Toast.LENGTH_SHORT).show()
                                         onSignInSuccess()
@@ -479,5 +642,142 @@ fun AuthScreen(
                 }
             }
         }
+    }
+
+    // Provider Disabled Information Dialog
+    if (showProviderDisabledDialog) {
+        AlertDialog(
+            onDismissRequest = { showProviderDisabledDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AdminPanelSettings, contentDescription = null, tint = CrimsonPrimary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Firebase Console Setup Required", fontWeight = FontWeight.Bold, color = TextPrimary)
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Why am I seeing 'operation is not allowed'?",
+                        fontWeight = FontWeight.Bold,
+                        color = GoldAccent
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "By default in new Firebase projects, the Email/Password sign-in provider is disabled until manually enabled in the Firebase Console.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Steps to enable in Firebase Console:",
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "1. Open console.firebase.google.com\n" +
+                               "2. Open project 'gen-lang-client-0410459307'\n" +
+                               "3. Under 'Build', click 'Authentication'\n" +
+                               "4. Select the 'Sign-in method' tab\n" +
+                               "5. Click 'Email/Password' under Native providers\n" +
+                               "6. Toggle 'Enable' to ON and click 'Save'\n\n" +
+                               "Once enabled in the Console, email registration will work instantly!",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextPrimary
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showProviderDisabledDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonPrimary)
+                ) {
+                    Text("Understood")
+                }
+            },
+            containerColor = BrandCardDark
+        )
+    }
+
+    // First-time Google Player Profile Setup Dialog
+    if (showGoogleProfileDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showGoogleProfileDialog = false
+                onSignInSuccess()
+            },
+            title = {
+                Text("Complete Free Fire Profile", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "To enter tournaments, please provide your Free Fire gamer details:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = googleIgn,
+                        onValueChange = { googleIgn = it },
+                        label = { Text("Free Fire In-Game Name (IGN)") },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CrimsonPrimary,
+                            unfocusedBorderColor = BrandBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = googleFfUid,
+                        onValueChange = { input -> if (input.all { it.isDigit() }) googleFfUid = input },
+                        label = { Text("Free Fire Player UID") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = CrimsonPrimary,
+                            unfocusedBorderColor = BrandBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (googleIgn.isNotBlank() && googleFfUid.isNotBlank()) {
+                            coroutineScope.launch {
+                                repository.updatePlayerGamerInfo(googleIgn.trim(), googleFfUid.trim())
+                                showGoogleProfileDialog = false
+                                onSignInSuccess()
+                            }
+                        } else {
+                            Toast.makeText(context, "Please enter both IGN and Player UID", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CrimsonPrimary)
+                ) {
+                    Text("Save & Enter Arena")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showGoogleProfileDialog = false
+                    onSignInSuccess()
+                }) {
+                    Text("Skip for Now", color = TextSecondary)
+                }
+            },
+            containerColor = BrandCardDark
+        )
     }
 }

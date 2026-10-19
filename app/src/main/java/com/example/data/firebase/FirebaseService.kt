@@ -4,6 +4,7 @@ import android.util.Log
 import com.example.model.*
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.channels.awaitClose
@@ -160,17 +161,33 @@ class FirebaseService {
                 }
                 if (snapshot != null && snapshot.exists()) {
                     val data = snapshot.data
+                    val ignVal = data?.get("ign") as? String ?: data?.get("freeFireIgn") as? String ?: ""
+                    val ffUidVal = data?.get("freeFireUID") as? String ?: data?.get("freeFireUid") as? String ?: ""
+                    val nameVal = data?.get("fullName") as? String ?: data?.get("displayName") as? String ?: "Gamer"
+                    val balanceVal = (data?.get("walletBalance") as? Number)?.toInt()
+                        ?: (data?.get("walletBalanceNpr") as? Number)?.toInt() ?: 0
+                    val statusVal = data?.get("accountStatus") as? String ?: "ACTIVE"
+
+                    val createdRaw = data?.get("createdAt")
+                    val createdAtVal = when (createdRaw) {
+                        is com.google.firebase.Timestamp -> createdRaw.toDate().toString()
+                        is String -> createdRaw
+                        is Number -> createdRaw.toString()
+                        else -> ""
+                    }
+
                     val user = User(
                         id = snapshot.id,
                         email = data?.get("email") as? String ?: "",
-                        displayName = data?.get("displayName") as? String ?: "Gamer",
-                        freeFireIgn = data?.get("freeFireIgn") as? String ?: "",
-                        freeFireUid = data?.get("freeFireUid") as? String ?: "",
-                        walletBalanceNpr = (data?.get("walletBalanceNpr") as? Number)?.toInt() ?: 0,
+                        displayName = nameVal,
+                        freeFireIgn = ignVal,
+                        freeFireUid = ffUidVal,
+                        walletBalanceNpr = balanceVal,
                         totalMatchesPlayed = (data?.get("totalMatchesPlayed") as? Number)?.toInt() ?: 0,
                         totalWins = (data?.get("totalWins") as? Number)?.toInt() ?: 0,
                         role = data?.get("role") as? String ?: "USER",
-                        createdAt = data?.get("createdAt") as? String ?: ""
+                        accountStatus = statusVal,
+                        createdAt = createdAtVal
                     )
                     trySend(user)
                 } else {
@@ -187,17 +204,32 @@ class FirebaseService {
             val doc = db.collection("users").document(uid).get().await()
             if (doc.exists()) {
                 val data = doc.data
+                val ignVal = data?.get("ign") as? String ?: data?.get("freeFireIgn") as? String ?: ""
+                val ffUidVal = data?.get("freeFireUID") as? String ?: data?.get("freeFireUid") as? String ?: ""
+                val nameVal = data?.get("fullName") as? String ?: data?.get("displayName") as? String ?: "Gamer"
+                val balanceVal = (data?.get("walletBalance") as? Number)?.toInt()
+                    ?: (data?.get("walletBalanceNpr") as? Number)?.toInt() ?: 0
+                val statusVal = data?.get("accountStatus") as? String ?: "ACTIVE"
+                val createdRaw = data?.get("createdAt")
+                val createdAtVal = when (createdRaw) {
+                    is com.google.firebase.Timestamp -> createdRaw.toDate().toString()
+                    is String -> createdRaw
+                    is Number -> createdRaw.toString()
+                    else -> ""
+                }
+
                 User(
                     id = doc.id,
                     email = data?.get("email") as? String ?: "",
-                    displayName = data?.get("displayName") as? String ?: "Gamer",
-                    freeFireIgn = data?.get("freeFireIgn") as? String ?: "",
-                    freeFireUid = data?.get("freeFireUid") as? String ?: "",
-                    walletBalanceNpr = (data?.get("walletBalanceNpr") as? Number)?.toInt() ?: 0,
+                    displayName = nameVal,
+                    freeFireIgn = ignVal,
+                    freeFireUid = ffUidVal,
+                    walletBalanceNpr = balanceVal,
                     totalMatchesPlayed = (data?.get("totalMatchesPlayed") as? Number)?.toInt() ?: 0,
                     totalWins = (data?.get("totalWins") as? Number)?.toInt() ?: 0,
                     role = data?.get("role") as? String ?: "USER",
-                    createdAt = data?.get("createdAt") as? String ?: ""
+                    accountStatus = statusVal,
+                    createdAt = createdAtVal
                 )
             } else null
         } catch (e: Exception) {
@@ -219,7 +251,12 @@ class FirebaseService {
             // Update IGN/UID if provided and missing
             if (ign.isNotBlank() && existing.freeFireIgn.isBlank()) {
                 db?.collection("users")?.document(uid)?.update(
-                    mapOf("freeFireIgn" to ign, "freeFireUid" to ffUid)
+                    mapOf(
+                        "ign" to ign,
+                        "freeFireIgn" to ign,
+                        "freeFireUID" to ffUid,
+                        "freeFireUid" to ffUid
+                    )
                 )?.await()
                 return existing.copy(freeFireIgn = ign, freeFireUid = ffUid)
             }
@@ -235,26 +272,51 @@ class FirebaseService {
             walletBalanceNpr = 0, // Invariant: Initial balance must be 0 NPR
             totalMatchesPlayed = 0,
             totalWins = 0,
-            role = if (email == "sagarpant391286@gmail.com") "ADMIN" else "USER",
+            role = if (email.equals("sagarpant391286@gmail.com", ignoreCase = true)) "ADMIN" else "USER",
+            accountStatus = "ACTIVE",
             createdAt = System.currentTimeMillis().toString()
         )
 
         db?.collection("users")?.document(uid)?.set(
             hashMapOf(
+                "uid" to newUser.id,
                 "id" to newUser.id,
                 "email" to newUser.email,
+                "fullName" to newUser.displayName,
                 "displayName" to newUser.displayName,
+                "ign" to newUser.freeFireIgn,
                 "freeFireIgn" to newUser.freeFireIgn,
+                "freeFireUID" to newUser.freeFireUid,
                 "freeFireUid" to newUser.freeFireUid,
+                "walletBalance" to 0,
                 "walletBalanceNpr" to 0,
                 "totalMatchesPlayed" to 0,
                 "totalWins" to 0,
                 "role" to newUser.role,
-                "createdAt" to newUser.createdAt
+                "accountStatus" to "ACTIVE",
+                "createdAt" to FieldValue.serverTimestamp()
             )
         )?.await()
 
         return newUser
+    }
+
+    suspend fun updatePlayerGamerInfo(uid: String, ign: String, ffUid: String): Boolean {
+        val db = firestore ?: return false
+        return try {
+            db.collection("users").document(uid).update(
+                mapOf(
+                    "ign" to ign,
+                    "freeFireIgn" to ign,
+                    "freeFireUID" to ffUid,
+                    "freeFireUid" to ffUid
+                )
+            ).await()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update player gamer info", e)
+            false
+        }
     }
 
     suspend fun updateWalletBalance(uid: String, newBalance: Int): Boolean {
